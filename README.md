@@ -2,6 +2,8 @@
 
 This folder contains the minimum code needed to run the trained **UniBuild DINOv3-Base HR-DPT** checkpoint for building mask inference on RGB optical remote sensing GeoTIFFs. It only keeps the DINOv3-Base backbone and HLRDPT decoder needed for the released model. It can also optionally polygonize and regularize the predicted mask into vectorized building footprints.
 
+![UniBuild building extraction example](figures/ood_google_crop.png)
+
 The folder is self-contained for inference: run commands from this repository folder.
 
 ## Folder Layout
