@@ -1,0 +1,12 @@
+checkpoints/*
+!checkpoints/.gitkeep
+outputs/*
+!outputs/.gitkeep
+__pycache__/
+*.py[cod]
+*.pth
+*.pt
+*.ckpt
+*.tif
+*.tiff
+*.gpkg
