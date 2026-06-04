@@ -2,8 +2,9 @@ checkpoints/*
 !checkpoints/.gitkeep
 data/*
 !data/.gitkeep
-outputs/*
-!outputs/.gitkeep
+!data/outputs/
+data/outputs/*
+!data/outputs/.gitkeep
 __pycache__/
 *.py[cod]
 *.pth

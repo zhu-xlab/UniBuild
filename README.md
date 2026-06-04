@@ -14,8 +14,8 @@ UniBuild/
   requirements.txt
   README.md
   checkpoints/              # put model checkpoints here
-  data/                     # put input RGB GeoTIFFs here
-  outputs/                  # default output directory
+  data/                     # put input RGB GeoTIFFs and outputs here
+    outputs/                # default output directory
   models/                   # minimal local model code copied from UniBuild
 ```
 
@@ -52,15 +52,14 @@ Run sliding-window inference on an RGB GeoTIFF:
 ```bash
 python infer_geotiff.py \
   --input data/input_rgb.tif \
-  --output-dir outputs \
   --save-prob
 ```
 
 Outputs:
 
 ```text
-outputs/input_rgb_mask.tif    # binary building mask, 0 background / 1 building
-outputs/input_rgb_prob.tif    # optional float32 building probability
+data/outputs/input_rgb_mask.tif    # binary building mask, 0 background / 1 building
+data/outputs/input_rgb_prob.tif    # optional float32 building probability
 ```
 
 For images coarser than 1 m GSD, upsample to 1 m during inference:
@@ -68,7 +67,6 @@ For images coarser than 1 m GSD, upsample to 1 m during inference:
 ```bash
 python infer_geotiff.py \
   --input data/coarse_rgb.tif \
-  --output-dir outputs \
   --upsample-to-gsd 1.0
 ```
 
@@ -79,7 +77,6 @@ To generate both raster masks and vectorized regularized building footprints:
 ```bash
 python infer_geotiff.py \
   --input data/input_rgb.tif \
-  --output-dir outputs \
   --regularize \
   --simplify-tolerance 2.0 \
   --parallel-threshold 2.0 \
@@ -89,9 +86,9 @@ python infer_geotiff.py \
 Outputs:
 
 ```text
-outputs/input_rgb_mask.tif                  # raw binary mask
-outputs/input_rgb_buildings_regularized.gpkg # regularized vector footprints
-outputs/input_rgb_mask_regularized.tif       # rasterized regularized footprints
+data/outputs/input_rgb_mask.tif                  # raw binary mask
+data/outputs/input_rgb_buildings_regularized.gpkg # regularized vector footprints
+data/outputs/input_rgb_mask_regularized.tif       # rasterized regularized footprints
 ```
 
 Useful regularization options:

@@ -35,7 +35,7 @@ def parse_args():
         default=None,
         help="Optional standalone DINOv3-Base pretrained checkpoint. Not needed when --checkpoint is a full UniBuild checkpoint.",
     )
-    parser.add_argument("--output-dir", default="outputs", help="Output directory.")
+    parser.add_argument("--output-dir", default="data/outputs", help="Output directory.")
     parser.add_argument("--name", default=None, help="Output stem. Defaults to input file stem.")
     parser.add_argument("--dinov3-variant", default="base", choices=["base"])
     parser.add_argument("--tile-size", type=int, default=512)
