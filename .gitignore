@@ -1,5 +1,7 @@
 checkpoints/*
 !checkpoints/.gitkeep
+data/*
+!data/.gitkeep
 outputs/*
 !outputs/.gitkeep
 __pycache__/

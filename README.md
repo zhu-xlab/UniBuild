@@ -2,27 +2,28 @@
 
 This folder contains the minimum code needed to run the trained **UniBuild DINOv3-Base HR-DPT** checkpoint for building mask inference on RGB optical remote sensing GeoTIFFs. It only keeps the DINOv3-Base backbone and HLRDPT decoder needed for the released model. It can also optionally polygonize and regularize the predicted mask into vectorized building footprints.
 
-The folder is self-contained for inference: run commands from inside `unibuild_inference/`.
+The folder is self-contained for inference: run commands from this repository folder.
 
 ## Folder Layout
 
 ```text
-unibuild_inference/
+UniBuild/
   infer_geotiff.py          # sliding-window GeoTIFF inference + optional regularization
   requirements.txt
   README.md
   checkpoints/              # put model checkpoints here
+  data/                     # put input RGB GeoTIFFs here
   outputs/                  # default output directory
   models/                   # minimal local model code copied from UniBuild
 ```
 
 ## Checkpoints
 
-Place the trained UniBuild checkpoint under `unibuild_inference/checkpoints/`:
+Place the trained UniBuild checkpoint under `checkpoints/`:
 
 ```text
 checkpoints/
-  best_dinov3_base_hlrdpt-512-Multi-12-ce-saddle-stdir_lamSAD-15_lamST-0p5.pth
+  unibuild_dinov3_base_hrdpt.pth
 ```
 
 This full checkpoint already contains the DINOv3-Base backbone and HLRDPT decoder weights, so a separate DINOv3 pretrained backbone checkpoint is not required for normal inference.
@@ -33,7 +34,6 @@ If you intentionally want to initialize the backbone before loading a partial ch
 Create or activate a Python environment with PyTorch installed, then install the remaining dependencies:
 
 ```bash
-cd unibuild_inference
 pip install -r requirements.txt
 ```
 
@@ -48,11 +48,8 @@ pip install numpy torch rasterio shapely
 Run sliding-window inference on an RGB GeoTIFF:
 
 ```bash
-cd unibuild_inference
-
 python infer_geotiff.py \
-  --input /path/to/input_rgb.tif \
-  --checkpoint checkpoints/best_dinov3_base_hlrdpt-512-Multi-12-ce-saddle-stdir_lamSAD-15_lamST-0p5.pth \
+  --input data/input_rgb.tif \
   --output-dir outputs \
   --save-prob
 ```
@@ -68,8 +65,7 @@ For images coarser than 1 m GSD, upsample to 1 m during inference:
 
 ```bash
 python infer_geotiff.py \
-  --input /path/to/coarse_rgb.tif \
-  --checkpoint checkpoints/best_dinov3_base_hlrdpt-512-Multi-12-ce-saddle-stdir_lamSAD-15_lamST-0p5.pth \
+  --input data/coarse_rgb.tif \
   --output-dir outputs \
   --upsample-to-gsd 1.0
 ```
@@ -80,8 +76,7 @@ To generate both raster masks and vectorized regularized building footprints:
 
 ```bash
 python infer_geotiff.py \
-  --input /path/to/input_rgb.tif \
-  --checkpoint checkpoints/best_dinov3_base_hlrdpt-512-Multi-12-ce-saddle-stdir_lamSAD-15_lamST-0p5.pth \
+  --input data/input_rgb.tif \
   --output-dir outputs \
   --regularize \
   --simplify-tolerance 2.0 \

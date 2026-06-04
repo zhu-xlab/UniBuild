@@ -24,8 +24,12 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Minimal UniBuild DINOv3-Base HR-DPT GeoTIFF inference with optional building regularization."
     )
-    parser.add_argument("--input", required=True, help="Input RGB GeoTIFF.")
-    parser.add_argument("--checkpoint", required=True, help="Trained UniBuild DINOv3-Base HR-DPT checkpoint.")
+    parser.add_argument("--input", required=True, help="Input RGB GeoTIFF. Put example inputs under data/.")
+    parser.add_argument(
+        "--checkpoint",
+        default="checkpoints/unibuild_dinov3_base_hrdpt.pth",
+        help="Trained UniBuild DINOv3-Base HR-DPT checkpoint.",
+    )
     parser.add_argument(
         "--backbone-checkpoint",
         default=None,
