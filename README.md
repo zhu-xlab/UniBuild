@@ -21,7 +21,12 @@ UniBuild/
 
 ## Checkpoints
 
-Place the trained UniBuild checkpoint under `checkpoints/`:
+Download the trained UniBuild checkpoint from either mirror:
+
+- [Google Drive](https://drive.google.com/drive/folders/1YZ-bbXoZ1rOKQayRL79bLdhIE_CcU3K9?usp=drive_link)
+- [Baidu Netdisk](https://pan.baidu.com/s/1ViHEDvAkf_VjdP8gAixANw) (extraction code: `unbd`)
+
+Place the downloaded checkpoint under `checkpoints/` with the following filename:
 
 ```text
 checkpoints/
