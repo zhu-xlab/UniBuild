@@ -11,8 +11,9 @@ The folder is self-contained for inference and polygonization: it does not impor
 ```text
 unibuild_inference/
   infer_geotiff.py          # sliding-window GeoTIFF inference + optional polygonization
-  instance_corner_extractor.py
-  instance_corner_polygonizer.py
+  instance_corners/         # self-contained corner extraction and polygonization
+    extractor.py
+    polygonizer.py
   requirements.txt
   README.md
   checkpoints/              # put model checkpoints here
@@ -52,70 +53,32 @@ If you only need raster mask inference and do not need vector footprint generati
 pip install numpy torch rasterio
 ```
 
-## Building Mask Inference
+## Inference
 
 Run sliding-window inference on an RGB GeoTIFF:
 
 ```bash
 python infer_geotiff.py \
   --input data/input_rgb.tif \
-  --save-prob
+  --polygonize
 ```
 
-Outputs:
+`--polygonize` is optional. Keep it to extract direction-aware building-instance polygons and corners; remove it to generate only the binary building mask.
+
+The binary mask is always saved:
 
 ```text
-data/outputs/input_rgb_mask.tif    # binary building mask, 0 background / 1 building
-data/outputs/input_rgb_prob.tif    # optional float32 building probability
+data/outputs/input_rgb_mask.tif
 ```
 
-For images coarser than 1 m GSD, upsample to 1 m during inference:
-
-```bash
-python infer_geotiff.py \
-  --input data/coarse_rgb.tif \
-  --upsample-to-gsd 1.0
-```
-
-## Mask + Instance Polygonization
-
-To generate the raster mask, direction-aware building polygons, and the polygonized raster mask:
-
-```bash
-python infer_geotiff.py \
-  --input data/input_rgb.tif \
-  --polygonize \
-  --min-instance-area 9 \
-  --connectivity 8
-```
-
-Outputs:
+With `--polygonize`, the command additionally saves:
 
 ```text
-data/outputs/input_rgb_mask.tif             # raw binary mask
-data/outputs/input_rgb_buildings.gpkg        # instance polygons with corner vertices
-data/outputs/input_rgb_mask_polygonized.tif  # rasterized direction-aware polygons
+data/outputs/input_rgb_buildings.gpkg
+data/outputs/input_rgb_mask_polygonized.tif
 ```
 
-The polygonization pipeline separates connected building instances, simplifies their contours, removes redundant points using local and dominant directions, snaps eligible edges to the dominant building axes, and merges short corner transitions only when both turns have the same direction. The short-edge merge threshold is `8.0` pixels.
-
-Useful polygonization options:
-
-```bash
---connectivity 8
---min-instance-area 9
-```
-
-`--regularize` remains available as a compatibility alias for `--polygonize`.
-
-The GeoPackage contains one feature per exterior building polygon with these attributes:
-
-```text
-inst_id    connected-component instance ID
-area_px    source mask area in pixels
-vertices   extracted exterior-corner count
-angle_deg  dominant building direction
-```
+The polygonization strategy separates connected instances, simplifies contours under dominant-direction constraints, and merges short corner transitions only when both turns share the same direction. The short-edge merge threshold is `8.0` pixels. Use `--min-instance-area` and `--connectivity` to control instance filtering and connectivity.
 
 ## Notes
 

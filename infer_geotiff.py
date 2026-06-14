@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from instance_corner_polygonizer import (
+from instance_corners import (
     compose_full_mask,
     extract_instances,
     process_instance,

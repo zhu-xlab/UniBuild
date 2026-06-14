@@ -945,7 +945,7 @@ def simplify_contour_directional(
     jagged_collapse_iters: int,
 ) -> tuple[np.ndarray | None, float]:
     """Extract instance corners with direction pruning and line intersections."""
-    from instance_corner_extractor import (
+    from .extractor import (
         InstanceCornerConfig,
         recover_line_intersection_corners,
     )
