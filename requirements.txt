@@ -1,7 +1,5 @@
 numpy
 torch
 rasterio
-shapely
-geopandas
-pyogrio
-git+https://github.com/DPIRD-DMA/Building-Regulariser.git
+opencv-python
+fiona

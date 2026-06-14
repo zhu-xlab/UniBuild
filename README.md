@@ -1,16 +1,18 @@
 # UniBuild Standalone Inference
 
-This folder contains the minimum code needed to run the trained **UniBuild DINOv3-Base HR-DPT** checkpoint for building mask inference on RGB optical remote sensing GeoTIFFs. It only keeps the DINOv3-Base backbone and HLRDPT decoder needed for the released model. It can also optionally polygonize and regularize the predicted mask into vectorized building footprints.
+This folder contains the minimum code needed to run the trained **UniBuild DINOv3-Base HR-DPT** checkpoint for building mask inference on RGB optical remote sensing GeoTIFFs. It only keeps the DINOv3-Base backbone and HR-DPT decoder needed for the released model. It can also extract direction-aware building-instance polygons and corners from the predicted mask.
 
 ![UniBuild building extraction example](figures/ood_google_crop.png)
 
-The folder is self-contained for inference: run commands from this repository folder.
+The folder is self-contained for inference and polygonization: it does not import code from the full UniBuild repository and does not require Building-Regulariser.
 
 ## Folder Layout
 
 ```text
-UniBuild/
-  infer_geotiff.py          # sliding-window GeoTIFF inference + optional regularization
+unibuild_inference/
+  infer_geotiff.py          # sliding-window GeoTIFF inference + optional polygonization
+  instance_corner_extractor.py
+  instance_corner_polygonizer.py
   requirements.txt
   README.md
   checkpoints/              # put model checkpoints here
@@ -44,10 +46,10 @@ Create or activate a Python environment with PyTorch installed, then install the
 pip install -r requirements.txt
 ```
 
-If you only need raster mask inference and do not need vector footprint generation, the regularization dependencies can be omitted:
+If you only need raster mask inference and do not need vector footprint generation, OpenCV and Fiona can be omitted:
 
 ```bash
-pip install numpy torch rasterio shapely
+pip install numpy torch rasterio
 ```
 
 ## Building Mask Inference
@@ -75,39 +77,45 @@ python infer_geotiff.py \
   --upsample-to-gsd 1.0
 ```
 
-## Mask + Building Regularization
+## Mask + Instance Polygonization
 
-To generate both raster masks and vectorized regularized building footprints:
+To generate the raster mask, direction-aware building polygons, and the polygonized raster mask:
 
 ```bash
 python infer_geotiff.py \
   --input data/input_rgb.tif \
-  --regularize \
-  --simplify-tolerance 2.0 \
-  --parallel-threshold 2.0 \
-  --min-area 8
+  --polygonize \
+  --min-instance-area 9 \
+  --connectivity 8
 ```
 
 Outputs:
 
 ```text
-data/outputs/input_rgb_mask.tif                  # raw binary mask
-data/outputs/input_rgb_buildings_regularized.gpkg # regularized vector footprints
-data/outputs/input_rgb_mask_regularized.tif       # rasterized regularized footprints
+data/outputs/input_rgb_mask.tif             # raw binary mask
+data/outputs/input_rgb_buildings.gpkg        # instance polygons with corner vertices
+data/outputs/input_rgb_mask_polygonized.tif  # rasterized direction-aware polygons
 ```
 
-Useful regularization options:
+The polygonization pipeline separates connected building instances, simplifies their contours, removes redundant points using local and dominant directions, snaps eligible edges to the dominant building axes, and merges short corner transitions only when both turns have the same direction. The short-edge merge threshold is `8.0` pixels.
+
+Useful polygonization options:
 
 ```bash
---allow-circles
---circle-threshold 0.85
---allow-45-degree
---simplify-tolerance 2.0
---parallel-threshold 2.0
---min-area 8
+--connectivity 8
+--min-instance-area 9
 ```
 
-For meter-based CRS, `--simplify-tolerance` around 2-3 times the pixel size usually reduces stair-step artifacts more strongly.
+`--regularize` remains available as a compatibility alias for `--polygonize`.
+
+The GeoPackage contains one feature per exterior building polygon with these attributes:
+
+```text
+inst_id    connected-component instance ID
+area_px    source mask area in pixels
+vertices   extracted exterior-corner count
+angle_deg  dominant building direction
+```
 
 ## Notes
 

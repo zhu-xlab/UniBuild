@@ -9,20 +9,23 @@ import rasterio
 import torch
 import torch.nn.functional as F
 from rasterio.enums import Resampling
-from rasterio.features import rasterize, shapes
 from rasterio.vrt import WarpedVRT
-from shapely.geometry import shape
 
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from instance_corner_polygonizer import (
+    compose_full_mask,
+    extract_instances,
+    process_instance,
+)
 from models.segmentation_model import SegmentationModel
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Minimal UniBuild DINOv3-Base HR-DPT GeoTIFF inference with optional building regularization."
+        description="Minimal UniBuild DINOv3-Base HR-DPT GeoTIFF inference with optional instance polygonization."
     )
     parser.add_argument("--input", required=True, help="Input RGB GeoTIFF. Put example inputs under data/.")
     parser.add_argument(
@@ -56,18 +59,20 @@ def parse_args():
         help="If set and input pixel size is coarser than this value, infer on a bilinearly upsampled VRT grid.",
     )
 
-    parser.add_argument("--regularize", action="store_true", help="Polygonize and regularize the predicted mask.")
-    parser.add_argument("--min-area", type=float, default=1.0, help="Drop polygons smaller than this CRS area.")
-    parser.add_argument("--simplify-tolerance", type=float, default=0.5)
-    parser.add_argument("--parallel-threshold", type=float, default=1.0)
-    parser.add_argument("--allow-45-degree", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--allow-circles", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--circle-threshold", type=float, default=0.85)
-    parser.add_argument("--neighbor-alignment", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--neighbor-search-distance", type=float, default=100.0)
-    parser.add_argument("--neighbor-max-rotation", type=float, default=10.0)
-    parser.add_argument("--num-cores", type=int, default=0)
-    parser.add_argument("--all-touched", action="store_true")
+    parser.add_argument(
+        "--polygonize",
+        "--regularize",
+        dest="polygonize",
+        action="store_true",
+        help="Extract direction-aware building-instance polygons and corners.",
+    )
+    parser.add_argument("--connectivity", type=int, choices=(4, 8), default=8)
+    parser.add_argument(
+        "--min-instance-area",
+        type=int,
+        default=9,
+        help="Ignore connected building instances smaller than this many pixels.",
+    )
     return parser.parse_args()
 
 
@@ -180,8 +185,8 @@ def output_paths(args):
     return {
         "prob": out_dir / f"{stem}_prob.tif",
         "mask": out_dir / f"{stem}_mask.tif",
-        "regularized_mask": out_dir / f"{stem}_mask_regularized.tif",
-        "vector": out_dir / f"{stem}_buildings_regularized.gpkg",
+        "polygonized_mask": out_dir / f"{stem}_mask_polygonized.tif",
+        "vector": out_dir / f"{stem}_buildings.gpkg",
     }
 
 
@@ -280,101 +285,167 @@ def run_inference(args):
                 dst.write(mask, 1)
             print(f"Saved mask: {paths['mask']}")
 
-    if args.regularize:
-        regularize_mask(args, paths)
+    if args.polygonize:
+        polygonize_mask(args, paths)
 
 
-def fix_geometry(geom):
-    if geom is None or geom.is_empty:
-        return None
-    if geom.is_valid:
-        return geom
-    fixed = geom.buffer(0)
-    return None if fixed.is_empty else fixed
+def build_polygonizer_args(args):
+    return SimpleNamespace(
+        connectivity=args.connectivity,
+        min_instance_area=args.min_instance_area,
+        bbox_padding=1,
+        chain_approx="none",
+        epsilon_ratio=0.0015,
+        min_epsilon_px=1.5,
+        max_epsilon_px=4.5,
+        angle_threshold_deg=12.0,
+        preserve_curves=True,
+        curve_turn_threshold_deg=30.0,
+        curve_window=3,
+        max_collinear_distance_px=1.0,
+        direction_threshold_deg=12.0,
+        snap_to_dominant=True,
+        max_snap_shift_px=3.0,
+        direction_prune_iters=3,
+        jagged_collapse=True,
+        jagged_min_contour_vertices=10,
+        jagged_min_run_vertices=5,
+        jagged_max_run_vertices=12,
+        jagged_short_edge_px=4.0,
+        jagged_min_short_edge_ratio=0.70,
+        jagged_max_mean_line_distance_px=1.5,
+        jagged_min_direction_switches=2,
+        jagged_collapse_iters=20,
+    )
 
 
-def mask_to_geodataframe(mask_path, min_area):
+def contour_to_world_ring(contour, transform):
+    ring = [
+        tuple(
+            float(value)
+            for value in transform * (float(x) + 0.5, float(y) + 0.5)
+        )
+        for x, y in contour.reshape(-1, 2)
+    ]
+    if ring and ring[0] != ring[-1]:
+        ring.append(ring[0])
+    return ring
+
+
+def extract_polygonized_instances(mask, args):
+    source_mask = np.where(np.asarray(mask) > 0, 255, 0).astype(np.uint8)
+    polygonizer_args = build_polygonizer_args(args)
+    instances = []
+    for instance_id, bbox_xywh, area, crop_mask in extract_instances(
+        source_mask,
+        polygonizer_args,
+    ):
+        instance = process_instance(
+            instance_id,
+            bbox_xywh,
+            area,
+            crop_mask,
+            polygonizer_args,
+        )
+        if instance is not None:
+            instances.append(instance)
+    return instances
+
+
+def write_instance_gpkg(path, instances, transform, crs):
     try:
-        import geopandas as gpd
-    except ImportError as exc:
-        raise ImportError("Install regularization dependencies: pip install geopandas pyogrio shapely") from exc
-
-    with rasterio.open(mask_path) as src:
-        mask = src.read(1) > 0
-        transform = src.transform
-        crs = src.crs
-        profile = src.profile.copy()
-
-    geoms = []
-    for geom_mapping, value in shapes(mask.astype(np.uint8), mask=mask, transform=transform):
-        if int(value) != 1:
-            continue
-        geom = fix_geometry(shape(geom_mapping))
-        if geom is not None and geom.area >= min_area:
-            geoms.append(geom)
-    if not geoms:
-        raise ValueError(f"No building polygons found in {mask_path}")
-    return gpd.GeoDataFrame({"geometry": geoms}, geometry="geometry", crs=crs), profile
-
-
-def regularize_mask(args, paths):
-    try:
-        from buildingregulariser import regularize_geodataframe
+        import fiona
     except ImportError as exc:
         raise ImportError(
-            "Install Building-Regulariser with:\n"
-            "  pip install git+https://github.com/DPIRD-DMA/Building-Regulariser.git"
+            "Writing GeoPackage polygons requires Fiona: pip install fiona"
         ) from exc
 
-    gdf, profile = mask_to_geodataframe(paths["mask"], args.min_area)
-    print(f"Polygonized buildings: {len(gdf)}")
-    reg_args = SimpleNamespace(
-        parallel_threshold=args.parallel_threshold,
-        simplify_tolerance=args.simplify_tolerance,
-        allow_45_degree=args.allow_45_degree,
-        allow_circles=args.allow_circles,
-        circle_threshold=args.circle_threshold,
-        num_cores=args.num_cores,
-        neighbor_alignment=args.neighbor_alignment,
-        neighbor_search_distance=args.neighbor_search_distance,
-        neighbor_max_rotation=args.neighbor_max_rotation,
-    )
-    regularized = regularize_geodataframe(
-        gdf,
-        parallel_threshold=reg_args.parallel_threshold,
-        simplify=True,
-        simplify_tolerance=reg_args.simplify_tolerance,
-        allow_45_degree=reg_args.allow_45_degree,
-        allow_circles=reg_args.allow_circles,
-        circle_threshold=reg_args.circle_threshold,
-        num_cores=reg_args.num_cores,
-        include_metadata=True,
-        neighbor_alignment=reg_args.neighbor_alignment,
-        neighbor_search_distance=reg_args.neighbor_search_distance,
-        neighbor_max_rotation=reg_args.neighbor_max_rotation,
-    )
-    regularized = regularized[regularized.geometry.notna()].copy()
-    regularized["geometry"] = regularized.geometry.apply(fix_geometry)
-    regularized = regularized[regularized.geometry.notna() & ~regularized.geometry.is_empty].copy()
-    if regularized.empty:
-        raise ValueError("Regularization produced no valid polygons.")
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        path.unlink()
 
-    paths["vector"].parent.mkdir(parents=True, exist_ok=True)
-    regularized.to_file(paths["vector"], driver="GPKG")
-    print(f"Saved regularized vector: {paths['vector']}")
+    schema = {
+        "geometry": "Polygon",
+        "properties": {
+            "inst_id": "int",
+            "area_px": "int",
+            "vertices": "int",
+            "angle_deg": "float",
+        },
+    }
+    open_kwargs = {
+        "driver": "GPKG",
+        "schema": schema,
+        "layer": "buildings",
+    }
+    if crs is not None:
+        open_kwargs["crs_wkt"] = crs.to_wkt()
 
+    feature_count = 0
+    with fiona.open(path, "w", **open_kwargs) as sink:
+        for instance in instances:
+            records = instance.contour_records
+            for contour in records:
+                if contour.is_hole:
+                    continue
+                shell = contour_to_world_ring(contour.contour_global, transform)
+                if len(shell) < 4:
+                    continue
+                holes = [
+                    contour_to_world_ring(candidate.contour_global, transform)
+                    for candidate in records
+                    if candidate.is_hole
+                    and candidate.parent_index == contour.contour_index
+                    and candidate.depth == contour.depth + 1
+                ]
+                holes = [ring for ring in holes if len(ring) >= 4]
+                sink.write(
+                    {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [shell, *holes],
+                        },
+                        "properties": {
+                            "inst_id": int(instance.instance_id),
+                            "area_px": int(instance.area),
+                            "vertices": int(contour.vertex_count),
+                            "angle_deg": float(contour.dominant_angle_deg),
+                        },
+                    }
+                )
+                feature_count += 1
+    return feature_count
+
+
+def polygonize_mask(args, paths):
+    with rasterio.open(paths["mask"]) as source:
+        mask = source.read(1)
+        transform = source.transform
+        crs = source.crs
+        profile = source.profile.copy()
+
+    instances = extract_polygonized_instances(mask, args)
+    if not instances:
+        raise ValueError(f"No building instances found in {paths['mask']}")
+
+    feature_count = write_instance_gpkg(
+        paths["vector"],
+        instances,
+        transform,
+        crs,
+    )
+    print(
+        f"Saved {feature_count} direction-aware building polygons: "
+        f"{paths['vector']}"
+    )
+
+    polygonized_mask = (compose_full_mask(mask.shape, instances) > 0).astype(np.uint8)
     profile.update(count=1, dtype="uint8", nodata=0, compress="lzw")
-    burned = rasterize(
-        ((geom, 1) for geom in regularized.geometry if geom is not None and not geom.is_empty),
-        out_shape=(profile["height"], profile["width"]),
-        transform=profile["transform"],
-        fill=0,
-        dtype="uint8",
-        all_touched=args.all_touched,
-    )
-    with rasterio.open(paths["regularized_mask"], "w", **profile) as dst:
-        dst.write(burned, 1)
-    print(f"Saved regularized mask: {paths['regularized_mask']}")
+    with rasterio.open(paths["polygonized_mask"], "w", **profile) as destination:
+        destination.write(polygonized_mask, 1)
+    print(f"Saved polygonized mask: {paths['polygonized_mask']}")
 
 
 def main():
