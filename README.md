@@ -2,6 +2,8 @@
 
 This folder contains the minimum code needed to run the trained **UniBuild DINOv3-Base HR-DPT** checkpoint for building mask inference on RGB optical remote sensing GeoTIFFs. It only keeps the DINOv3-Base backbone and HR-DPT decoder needed for the released model. It can also extract direction-aware building-instance polygons and corners from the predicted mask.
 
+Paper: [UniBuild: Unified Building Mapping From Multi-Source Optical Remote Sensing Imagery With Detail Decoding and Geometry Regularization](https://arxiv.org/abs/2609.37031)
+
 ![UniBuild building extraction example](figures/ood_google_crop.png)
 
 The folder is self-contained for inference and polygonization: it does not import code from the full UniBuild repository and does not require Building-Regulariser.
@@ -38,6 +40,23 @@ checkpoints/
 
 This full checkpoint already contains the DINOv3-Base backbone and HLRDPT decoder weights, so a separate DINOv3 pretrained backbone checkpoint is not required for normal inference.
 If you intentionally want to initialize the backbone before loading a partial checkpoint, pass it with `--backbone-checkpoint`.
+
+## Training Datasets
+
+The released UniBuild model was jointly trained on 12 RGB optical building-extraction datasets spanning 0.05–10 m ground sampling distance (GSD):
+
+| Resolution group | Datasets | Sensor/source | GSD |
+| --- | --- | --- | --- |
+| High resolution | Potsdam | Aerial orthophoto | 0.05 m |
+| High resolution | INRIA, LoveDA, SpaceNet2, LandCover.ai | Aerial imagery, Google Earth, WorldView-3, and orthophotos | 0.30 m |
+| High resolution | OpenEarthMap (OEM) | Multi-source aerial, satellite, and UAV imagery | 0.25–0.50 m |
+| High resolution | ORBITaL-Net | Maxar VHR, mainly WorldView-2/3 | 0.47 m |
+| High resolution | Alabama, WHU-Mix | Bing Maps and LINZ aerial imagery | 0.50 m |
+| High resolution | GF-7 | GaoFen-7 satellite imagery | 0.65 m |
+| Low resolution | Planet | PlanetScope imagery | 4.80 m |
+| Low resolution | Sentinel-2 (ST-2) | Sentinel-2 RGB imagery | 10 m |
+
+The Planet and Sentinel-2 datasets were constructed over globally distributed urban areas using OpenStreetMap-derived building annotations. See the paper for dataset splits and full experimental details.
 
 ## Installation
 
