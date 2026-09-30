@@ -47,7 +47,6 @@ def parse_args():
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
     parser.add_argument("--rgb-bands", type=int, nargs=3, default=[1, 2, 3])
-    parser.add_argument("--scale-mode", default="auto", choices=["auto", "uint8", "minmax"])
     parser.add_argument("--mean", type=float, nargs=3, default=[0.485, 0.456, 0.406])
     parser.add_argument("--std", type=float, nargs=3, default=[0.229, 0.224, 0.225])
     parser.add_argument("--save-prob", action="store_true", help="Also save probability GeoTIFF.")
@@ -112,30 +111,16 @@ def blend_weight(tile_size):
     return np.clip(np.outer(w, w).astype(np.float32), 1e-6, None)
 
 
-def scale_rgb(rgb, mode):
-    rgb = rgb.astype(np.float32)
-    if mode == "uint8" or (mode == "auto" and np.nanmax(rgb) <= 255.0):
-        return np.clip(rgb / 255.0, 0.0, 1.0)
-
-    out = np.zeros_like(rgb, dtype=np.float32)
-    for i in range(3):
-        band = rgb[i]
-        valid = np.isfinite(band)
-        if not np.any(valid):
-            continue
-        lo = float(np.min(band[valid]))
-        hi = float(np.max(band[valid]))
-        if hi > lo:
-            out[i] = np.clip((band - lo) / (hi - lo), 0.0, 1.0)
-    return out
+def scale_rgb(rgb):
+    return np.clip(rgb.astype(np.float32) / 255.0, 0.0, 1.0)
 
 
-def read_patch(src, row, col, tile_size, bands, scale_mode, mean, std):
+def read_patch(src, row, col, tile_size, bands, mean, std):
     h = min(tile_size, src.height - row)
     w = min(tile_size, src.width - col)
     window = rasterio.windows.Window(col, row, w, h)
     rgb = src.read(bands, window=window, boundless=False)
-    rgb = scale_rgb(rgb, scale_mode)
+    rgb = scale_rgb(rgb)
     if h != tile_size or w != tile_size:
         padded = np.zeros((3, tile_size, tile_size), dtype=np.float32)
         padded[:, :h, :w] = rgb
@@ -261,7 +246,6 @@ def run_inference(args):
                         col=col,
                         tile_size=args.tile_size,
                         bands=args.rgb_bands,
-                        scale_mode=args.scale_mode,
                         mean=args.mean,
                         std=args.std,
                     )

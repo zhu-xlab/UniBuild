@@ -49,10 +49,11 @@ Place an RGB GeoTIFF under `data/` and run:
 ```bash
 python infer_geotiff.py \
   --input data/input_rgb.tif \
+  --device cuda \
   --polygonize
 ```
 
-`--polygonize` is optional. Omit it to generate only the binary building mask. For imagery coarser than 1 m GSD, add `--upsample-to-gsd 1` to run inference on a 1 m grid.
+Use `--device cpu` for CPU inference. `--polygonize` is optional; omit it to generate only the binary building mask. For imagery coarser than 1 m GSD, add `--upsample-to-gsd 1` to run inference on a 1 m grid.
 
 ### Outputs
 
@@ -104,7 +105,7 @@ The Planet and Sentinel-2 datasets were constructed over globally distributed ur
 ## Notes
 
 - Input imagery must contain RGB optical bands. The default band order is `1 2 3`; use `--rgb-bands` for a different order.
-- `--scale-mode auto` divides 8-bit imagery by 255 and applies per-band min-max scaling to higher-range imagery; use `--scale-mode minmax` to force min-max scaling.
+- RGB values are normalized directly from 0-255 to 0-1; values outside the input range are clipped.
 - Output GeoTIFFs preserve the inference grid's CRS, transform, bounds, and size.
 - Use `--save-prob` to save the probability map and `--overwrite` to replace existing outputs.
 
