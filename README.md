@@ -47,13 +47,12 @@ pip install -r requirements.txt
 Place an RGB GeoTIFF under `data/` and run:
 
 ```bash
-python infer_geotiff.py \
+CUDA_VISIBLE_DEVICES=0 python infer_geotiff.py \
   --input data/input_rgb.tif \
-  --device cuda \
   --polygonize
 ```
 
-Use `--device cpu` for CPU inference. `--polygonize` is optional; omit it to generate only the binary building mask. For imagery coarser than 1 m GSD, add `--upsample-to-gsd 1` to run inference on a 1 m grid.
+Change `0` to the desired GPU index. CUDA is required for inference. `--polygonize` is optional; omit it to generate only the binary building mask. For imagery coarser than 1 m GSD, add `--upsample-to-gsd 1` to run inference on a 1 m grid.
 
 ### Outputs
 

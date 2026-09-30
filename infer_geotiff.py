@@ -45,7 +45,6 @@ def parse_args():
     parser.add_argument("--stride", type=int, default=384)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--threshold", type=float, default=0.5)
-    parser.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
     parser.add_argument("--rgb-bands", type=int, nargs=3, default=[1, 2, 3])
     parser.add_argument("--mean", type=float, nargs=3, default=[0.485, 0.456, 0.406])
     parser.add_argument("--std", type=float, nargs=3, default=[0.229, 0.224, 0.225])
@@ -207,7 +206,9 @@ def run_inference(args):
         if any(path.exists() for path in outputs):
             raise FileExistsError(f"Output exists. Use --overwrite to regenerate: {outputs}")
 
-    device = torch.device("cuda:0" if args.device == "cuda" and torch.cuda.is_available() else "cpu")
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is required for inference.")
+    device = torch.device("cuda:0")
     model = load_model(args, device)
 
     with rasterio.open(args.input) as base_src:
