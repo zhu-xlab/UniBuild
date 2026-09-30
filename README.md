@@ -1,12 +1,30 @@
-# UniBuild Standalone Inference
+# UniBuild: Unified Building Mapping From Multi-Source Optical Remote Sensing Imagery
 
-This folder contains the minimum code needed to run the trained **UniBuild DINOv3-Base HR-DPT** checkpoint for building mask inference on RGB optical remote sensing GeoTIFFs. It only keeps the DINOv3-Base backbone and HR-DPT decoder needed for the released model. It can also extract direction-aware building-instance polygons and corners from the predicted mask.
+Official inference implementation of **UniBuild**, a unified building-extraction framework for multi-source RGB optical remote sensing imagery. UniBuild combines a DINOv3 backbone with a detail-preserving HR-DPT decoder, direction-aware boundary regularization, and saddle-aware suppression of false connections between adjacent buildings. A single model handles imagery from diverse sensors and resolutions up to 10 m GSD, producing building masks and optional GIS-compatible vector footprints.
 
-Paper: [UniBuild: Unified Building Mapping From Multi-Source Optical Remote Sensing Imagery With Detail Decoding and Geometry Regularization](https://arxiv.org/abs/2609.37031)
+## Paper
+
+**UniBuild: Unified Building Mapping From Multi-Source Optical Remote Sensing Imagery With Detail Decoding and Geometry Regularization**
+
+Wei Huang, Chenying Liu, Yilei Shi, and Xiao Xiang Zhu
+
+[arXiv:2609.37031](https://arxiv.org/abs/2609.37031)
+
+```bibtex
+@misc{huang2026unibuild,
+  title         = {UniBuild: Unified Building Mapping From Multi-Source Optical Remote Sensing Imagery With Detail Decoding and Geometry Regularization},
+  author        = {Huang, Wei and Liu, Chenying and Shi, Yilei and Zhu, Xiao Xiang},
+  year          = {2026},
+  eprint        = {2609.37031},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
+  url           = {https://arxiv.org/abs/2609.37031}
+}
+```
 
 ![UniBuild building extraction example](figures/ood_google_crop.png)
 
-The folder is self-contained for inference and polygonization: it does not import code from the full UniBuild repository and does not require Building-Regulariser.
+This repository contains the self-contained inference and polygonization code for the released **UniBuild DINOv3-Base HR-DPT** checkpoint. It does not require Building-Regulariser.
 
 ## Folder Layout
 
@@ -38,7 +56,7 @@ checkpoints/
   unibuild_dinov3_base_hrdpt.pth
 ```
 
-This full checkpoint already contains the DINOv3-Base backbone and HLRDPT decoder weights, so a separate DINOv3 pretrained backbone checkpoint is not required for normal inference.
+This full checkpoint already contains the DINOv3-Base backbone and HR-DPT decoder weights, so a separate DINOv3 pretrained backbone checkpoint is not required for normal inference.
 If you intentionally want to initialize the backbone before loading a partial checkpoint, pass it with `--backbone-checkpoint`.
 
 ## Training Datasets
