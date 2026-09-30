@@ -104,6 +104,7 @@ The Planet and Sentinel-2 datasets were constructed over globally distributed ur
 ## Notes
 
 - Input imagery must contain RGB optical bands. The default band order is `1 2 3`; use `--rgb-bands` for a different order.
+- `--scale-mode auto` divides 8-bit imagery by 255 and applies per-band min-max scaling to higher-range imagery; use `--scale-mode minmax` to force min-max scaling.
 - Output GeoTIFFs preserve the inference grid's CRS, transform, bounds, and size.
 - Use `--save-prob` to save the probability map and `--overwrite` to replace existing outputs.
 

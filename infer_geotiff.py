@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
     parser.add_argument("--rgb-bands", type=int, nargs=3, default=[1, 2, 3])
-    parser.add_argument("--scale-mode", default="auto", choices=["auto", "uint8", "percentile"])
+    parser.add_argument("--scale-mode", default="auto", choices=["auto", "uint8", "minmax"])
     parser.add_argument("--mean", type=float, nargs=3, default=[0.485, 0.456, 0.406])
     parser.add_argument("--std", type=float, nargs=3, default=[0.229, 0.224, 0.225])
     parser.add_argument("--save-prob", action="store_true", help="Also save probability GeoTIFF.")
@@ -123,11 +123,8 @@ def scale_rgb(rgb, mode):
         valid = np.isfinite(band)
         if not np.any(valid):
             continue
-        lo = np.percentile(band[valid], 2)
-        hi = np.percentile(band[valid], 98)
-        if hi <= lo:
-            lo = float(np.min(band[valid]))
-            hi = float(np.max(band[valid]))
+        lo = float(np.min(band[valid]))
+        hi = float(np.max(band[valid]))
         if hi > lo:
             out[i] = np.clip((band - lo) / (hi - lo), 0.0, 1.0)
     return out
