@@ -73,14 +73,6 @@ CUDA_VISIBLE_DEVICES=0 python infer_geotiff.py \
   --tile-size 512 --stride 384 --batch-size 4 --threshold 0.5
 ```
 
-Input grid width and height must be positive. Images smaller than a tile are padded internally; the last window on each axis reaches the image edge. Invalid window parameters (for example, `--tile-size 512 --stride 768`) are rejected before loading the model. Before normalization and thresholding, inference also checks that every pixel received positive window weight and stops without writing predictions if coverage is incomplete. Missing coverage is never treated as background. The default `512/384` coverage behavior is unchanged.
-
-Run the coverage regression tests without a GPU or checkpoint (with the inference dependencies installed):
-
-```bash
-python -m unittest test_window_coverage
-```
-
 ### Outputs
 
 The binary mask is always saved to:
