@@ -54,6 +54,33 @@ CUDA_VISIBLE_DEVICES=0 python infer_geotiff.py \
 
 Change `0` to the desired GPU index. CUDA is required for inference. `--polygonize` is optional; omit it to generate only the binary building mask. For imagery coarser than 1 m GSD, add `--upsample-to-gsd 1` to run inference on a 1 m grid.
 
+### Sliding-window parameters
+
+The recommended defaults are `--tile-size 512 --stride 384 --batch-size 16 --threshold 0.5`:
+
+| Parameter | Guidance |
+| --- | --- |
+| `--tile-size` | Positive window side length in pixels. Keep `512` for the released checkpoint unless you have validated another size. |
+| `--stride` | Must satisfy `0 < stride <= tile_size`. The default `384` gives 128 pixels of overlap with 512-pixel tiles. A smaller stride adds overlap and computation; `512` removes regular overlap. |
+| `--batch-size` | Positive number of windows per batch. Reduce to `8`, `4`, `2`, or `1` if GPU memory is insufficient. |
+| `--threshold` | Building probability cutoff, default `0.5`. Lower values include more pixels; higher values are more selective. |
+
+For example:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python infer_geotiff.py \
+  --input data/input_rgb.tif \
+  --tile-size 512 --stride 384 --batch-size 4 --threshold 0.5
+```
+
+Input grid width and height must be positive. Images smaller than a tile are padded internally; the last window on each axis reaches the image edge. Invalid window parameters (for example, `--tile-size 512 --stride 768`) are rejected before loading the model. Before normalization and thresholding, inference also checks that every pixel received positive window weight and stops without writing predictions if coverage is incomplete. Missing coverage is never treated as background. The default `512/384` coverage behavior is unchanged.
+
+Run the coverage regression tests without a GPU or checkpoint (with the inference dependencies installed):
+
+```bash
+python -m unittest test_window_coverage
+```
+
 ### Outputs
 
 The binary mask is always saved to:

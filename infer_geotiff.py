@@ -95,7 +95,17 @@ def load_model(args, device):
     return model
 
 
+def validate_window_params(tile_size, stride):
+    if tile_size <= 0:
+        raise ValueError("--tile-size must be positive.")
+    if not 0 < stride <= tile_size:
+        raise ValueError("--stride must satisfy 0 < stride <= --tile-size to avoid uncovered pixels.")
+
+
 def compute_starts(length, tile_size, stride):
+    validate_window_params(tile_size, stride)
+    if length <= 0:
+        raise ValueError("Input grid dimensions must be positive.")
     if length <= tile_size:
         return [0]
     starts = list(range(0, length - tile_size + 1, stride))
@@ -197,6 +207,9 @@ def maybe_upsampled_source(src, target_gsd):
 
 
 def run_inference(args):
+    validate_window_params(args.tile_size, args.stride)
+    if args.batch_size <= 0:
+        raise ValueError("--batch-size must be positive.")
     paths = output_paths(args)
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     if not args.overwrite:
@@ -209,7 +222,6 @@ def run_inference(args):
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required for inference.")
     device = torch.device("cuda:0")
-    model = load_model(args, device)
 
     with rasterio.open(args.input) as base_src:
         with maybe_upsampled_source(base_src, args.upsample_to_gsd) as src:
@@ -218,6 +230,7 @@ def run_inference(args):
 
             y_starts = compute_starts(src.height, args.tile_size, args.stride)
             x_starts = compute_starts(src.width, args.tile_size, args.stride)
+            model = load_model(args, device)
             weight = blend_weight(args.tile_size)
             prob_sum = np.zeros((src.height, src.width), dtype=np.float32)
             weight_sum = np.zeros_like(prob_sum)
@@ -256,6 +269,8 @@ def run_inference(args):
                         flush()
             flush()
 
+            if np.any(weight_sum <= 0):
+                raise RuntimeError("Inference left uncovered pixels; refusing to write incomplete predictions.")
             prob = prob_sum / np.clip(weight_sum, 1e-6, None)
             mask = (prob >= args.threshold).astype(np.uint8)
 
