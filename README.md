@@ -56,7 +56,7 @@ Change `0` to the desired GPU index. CUDA is required for inference. `--polygoni
 
 ### Input requirements
 
-RGB values must be finite and within **[0, 255]** (preferably `uint8`). Invalid values, NoData/masked pixels, or non-finite predictions stop inference with an error.
+RGB values must be finite and within **[0, 255]** (preferably `uint8`). Invalid input values or NoData/masked pixels stop inference with an error.
 
 Preprocess invalid pixels before inference, for example by filling them with **0** and exporting without `nodata=0` or invalid masks. Predictions over filled pixels do not represent real observations.
 
