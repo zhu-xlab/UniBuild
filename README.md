@@ -54,6 +54,12 @@ CUDA_VISIBLE_DEVICES=0 python infer_geotiff.py \
 
 Change `0` to the desired GPU index. CUDA is required for inference. `--polygonize` is optional; omit it to generate only the binary building mask. For imagery coarser than 1 m GSD, add `--upsample-to-gsd 1` to run inference on a 1 m grid.
 
+### Input requirements
+
+Provide RGB values in **[0, 255]** (preferably `uint8`); the program divides them by 255 before normalization. Rescale higher-bit-depth imagery to this range beforehand. NaN, Inf, out-of-range values, and pixels marked invalid by NoData metadata or masks cause an exception before model loading and before any resampling. Non-finite model predictions also stop inference before outputs are written.
+
+If the image contains invalid values or NoData, crop to a valid region or preprocess it first. You may try filling invalid pixels with **0**. If you intentionally use zero filling, export a new GeoTIFF in which the filled pixels are marked valid: do not retain `nodata=0` or an invalid dataset/alpha mask. Predictions over filled pixels are based on synthetic input and must not be interpreted as observations of those regions. The program does not fill pixels or remove validity metadata automatically.
+
 ### Sliding-window parameters
 
 The recommended defaults are `--tile-size 512 --stride 384 --batch-size 16 --threshold 0.5`:
@@ -123,7 +129,7 @@ The Planet and Sentinel-2 datasets were constructed over globally distributed ur
 ## Notes
 
 - Input imagery must contain RGB optical bands. The default band order is `1 2 3`; use `--rgb-bands` for a different order.
-- RGB values are normalized directly from 0-255 to 0-1; values outside the input range are clipped.
+- RGB values must be finite and in [0, 255]; invalid values and NoData are rejected. See the input requirements above.
 - Output GeoTIFFs preserve the inference grid's CRS, transform, bounds, and size.
 - Use `--save-prob` to save the probability map and `--overwrite` to replace existing outputs.
 

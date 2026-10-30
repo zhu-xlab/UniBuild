@@ -121,7 +121,21 @@ def blend_weight(tile_size):
 
 
 def scale_rgb(rgb):
-    return np.clip(rgb.astype(np.float32) / 255.0, 0.0, 1.0)
+    if not np.isfinite(rgb).all():
+        raise ValueError("Input RGB contains NaN or Inf. Preprocess the image before inference.")
+    if np.any(rgb < 0) or np.any(rgb > 255):
+        raise ValueError("Input RGB values must be in [0, 255]. Rescale the image before inference.")
+    return rgb.astype(np.float32) / 255.0
+
+
+def validate_source(src, bands):
+    if max(bands) > src.count or min(bands) < 1:
+        raise ValueError(f"--rgb-bands {bands} is invalid for input band count={src.count}")
+    for _, window in src.block_windows(bands[0]):
+        rgb = src.read(bands, window=window, masked=True)
+        if np.ma.is_masked(rgb):
+            raise ValueError("Input RGB contains NoData or masked pixels. Preprocess the image before inference.")
+        scale_rgb(rgb.data)
 
 
 def read_patch(src, row, col, tile_size, bands, mean, std):
@@ -224,10 +238,8 @@ def run_inference(args):
     device = torch.device("cuda:0")
 
     with rasterio.open(args.input) as base_src:
+        validate_source(base_src, args.rgb_bands)
         with maybe_upsampled_source(base_src, args.upsample_to_gsd) as src:
-            if max(args.rgb_bands) > src.count or min(args.rgb_bands) < 1:
-                raise ValueError(f"--rgb-bands {args.rgb_bands} is invalid for input band count={src.count}")
-
             y_starts = compute_starts(src.height, args.tile_size, args.stride)
             x_starts = compute_starts(src.width, args.tile_size, args.stride)
             model = load_model(args, device)
@@ -245,6 +257,8 @@ def run_inference(args):
                     return
                 batch = torch.stack(patches, dim=0).to(device)
                 probs = predict_batch(model, batch).cpu().numpy()
+                if not np.isfinite(probs).all():
+                    raise RuntimeError("Model predictions contain NaN or Inf; refusing to write invalid predictions.")
                 for prob, (row, col, h, w) in zip(probs, records):
                     prob_sum[row:row + h, col:col + w] += prob[:h, :w] * weight[:h, :w]
                     weight_sum[row:row + h, col:col + w] += weight[:h, :w]
@@ -272,6 +286,8 @@ def run_inference(args):
             if np.any(weight_sum <= 0):
                 raise RuntimeError("Inference left uncovered pixels; refusing to write incomplete predictions.")
             prob = prob_sum / np.clip(weight_sum, 1e-6, None)
+            if not np.isfinite(prob).all():
+                raise RuntimeError("Merged probabilities contain NaN or Inf; refusing to write invalid predictions.")
             mask = (prob >= args.threshold).astype(np.uint8)
 
             if args.save_prob:
