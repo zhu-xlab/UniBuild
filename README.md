@@ -56,9 +56,9 @@ Change `0` to the desired GPU index. CUDA is required for inference. `--polygoni
 
 ### Input requirements
 
-Provide RGB values in **[0, 255]** (preferably `uint8`); the program divides them by 255 before normalization. Rescale higher-bit-depth imagery to this range beforehand. NaN, Inf, out-of-range values, and pixels marked invalid by NoData metadata or masks cause an exception before model loading and before any resampling. Non-finite model predictions also stop inference before outputs are written.
+RGB values must be finite and within **[0, 255]** (preferably `uint8`). Invalid values, NoData/masked pixels, or non-finite predictions stop inference with an error.
 
-If the image contains invalid values or NoData, crop to a valid region or preprocess it first. You may try filling invalid pixels with **0**. If you intentionally use zero filling, export a new GeoTIFF in which the filled pixels are marked valid: do not retain `nodata=0` or an invalid dataset/alpha mask. Predictions over filled pixels are based on synthetic input and must not be interpreted as observations of those regions. The program does not fill pixels or remove validity metadata automatically.
+Preprocess invalid pixels before inference, for example by filling them with **0** and exporting without `nodata=0` or invalid masks. Predictions over filled pixels do not represent real observations.
 
 ### Sliding-window parameters
 
